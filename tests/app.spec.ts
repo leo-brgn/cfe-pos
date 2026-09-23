@@ -1,0 +1,14 @@
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+test('base path, creation, search and completion',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('./');await expect(page.getByRole('heading',{level:1})).toContainText('Ensemble');
+ await page.getByRole('button',{name:'Nouvelle action',exact:true}).click();
+ await page.getByLabel('Intitulé de l’action').fill('Préparer le collectif');await page.getByLabel('Échéance').fill('2026-10-12');await page.getByRole('button',{name:'Créer l’action',exact:true}).click();
+ await expect(page.getByRole('dialog')).not.toBeVisible();await page.getByRole('searchbox').fill('Préparer le collectif');await expect(page.locator('tbody tr')).toHaveCount(1);
+ await page.getByRole('button',{name:'Terminer : Préparer le collectif',exact:true}).click();await expect(page.locator('tbody')).toContainText('Terminé');
+ await page.getByRole('button',{name:'À traiter',exact:true}).click();await expect(page.getByText('Aucune action ne correspond')).toBeVisible();expect(errors).toEqual([]);
+});
+test('modules survive reload and Copilot is explicitly simulated',async({page})=>{await page.goto('./#/formation');await page.reload();await expect(page.getByRole('heading',{level:1})).toHaveText('CFE Formation');await page.goto('./#/copilote');await page.getByRole('button',{name:'Préparer une communication',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Exemple de méthode'})).toBeVisible();});
+test('desktop and mobile accessibility',async({page})=>{for(const width of [1440,390]){await page.setViewportSize({width,height:1000});await page.goto('./');expect(await page.evaluate(()=>document.body.scrollWidth<=innerWidth)).toBe(true);expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);if(width===390){const tableRegion=page.getByRole('region',{name:'Tableau des actions, défilement horizontal'});expect(await tableRegion.evaluate(el=>el.scrollWidth>el.clientWidth)).toBe(true);await page.getByRole('button',{name:'Ouvrir la navigation'}).click();await page.getByRole('link',{name:'Formation',exact:true}).click();await expect(page.getByRole('heading',{level:1})).toHaveText('CFE Formation');}}});
+test('dialog keyboard and accessibility',async({page})=>{await page.goto('./');await page.getByRole('button',{name:'Nouvelle action',exact:true}).click();await expect(page.getByLabel('Intitulé de l’action')).toBeFocused();expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze()).violations).toEqual([]);await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).not.toBeVisible();await expect(page.getByRole('button',{name:'Nouvelle action',exact:true})).toBeFocused();});
